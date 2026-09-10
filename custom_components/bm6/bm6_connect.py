@@ -10,6 +10,7 @@ from typing import Optional
 from bleak import BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.backends.scanner import AdvertisementData
+from bleak_retry_connector import establish_connection
 from Crypto.Cipher import AES
 
 from habluetooth import BaseHaScanner, BluetoothScannerDevice
@@ -109,6 +110,9 @@ class BM6Data:
 
 class BM6DeviceError(RuntimeError): ...
 
+class BM6DeviceNotFoundError(BM6DeviceError):
+    """Raised when the BLE device is not found by any scanner (car is away)."""
+
 
 class BM6Connector:
     """Class to manage the connection to the BM6 device."""
@@ -130,7 +134,7 @@ class BM6Connector:
                 connectable=True
         )
         if not self._scanners:
-            raise BM6DeviceError(f"Bluetooth device {self._address} not found")
+            raise BM6DeviceNotFoundError(f"Bluetooth device {self._address} not found")
         self._scanners.sort(key=lambda scanner: scanner.advertisement.rssi, reverse=True)
         _LOGGER.debug("Device BM6 at %s is seen by scanners %s",
             self._address,
@@ -188,10 +192,13 @@ class BM6Connector:
                     scanner.advertisement, 
                     scanner.scanner
                 )
-                async with BleakClient(
-                    scanner.ble_device, 
+                client = await establish_connection(
+                    BleakClient,
+                    scanner.ble_device,
+                    self._address,
                     timeout=BLEAK_CLIENT_TIMEOUT
-                ) as client:
+                )
+                try:
                     _LOGGER.debug(
                         "Write to BM6 at %s characteristic %s",
                         self._address,
@@ -225,6 +232,8 @@ class BM6Connector:
                     #     await asyncio.sleep(0.5)
                     # _LOGGER.debug("Finishing wait for data from BM6 at %s", device.address)
                     # await client.stop_notify(CHARACTERISTIC_UUID_NOTIFY)
+                finally:
+                    await client.disconnect()
             except Exception as e:
                 e.add_note = f"Using scanner {scanner.scanner.name}"
                 exceptions.append(e)

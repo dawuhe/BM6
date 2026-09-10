@@ -143,6 +143,8 @@ class BM6VoltageSensor(BM6SensorEntity):
 
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
+        if self.coordinator.data is None:
+            return {}
         return {
             key: self.coordinator.data.get(key)
             for key in [KEY_VOLTAGE_DEVICE, KEY_VOLTAGE_CORRECTED]
@@ -180,6 +182,8 @@ class BM6TemperatureSensor(BM6SensorEntity):
 
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
+        if self.coordinator.data is None:
+            return {}
         return {
             key: self.coordinator.data.get(key)
             for key in [
@@ -212,6 +216,8 @@ class BM6PercentageSensor(BM6SensorEntity):
 
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
+        if self.coordinator.data is None:
+            return {}
         return {
             key: self.coordinator.data.get(key)
             for key in [

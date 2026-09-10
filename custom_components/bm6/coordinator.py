@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .utils import convert_temperature
 from .battery import Battery
-from .bm6_connect import BM6Connector, BM6Data, BM6DeviceError
+from .bm6_connect import BM6Connector, BM6Data, BM6DeviceError, BM6DeviceNotFoundError
 from .const import (
     CONF_TEMPERATURE_UNIT,
     DOMAIN,
@@ -60,6 +60,7 @@ class BM6DataUpdateCoordinator(DataUpdateCoordinator):
         self.config_entry = config_entry
         self.device_address = config_entry.data[CONF_DEVICE_ADDRESS]
         self._battery = Battery(config_entry.data)
+        self._notified_away = False
         super().__init__(
             hass,
             _LOGGER,
@@ -83,6 +84,7 @@ class BM6DataUpdateCoordinator(DataUpdateCoordinator):
                 + self.config_entry.data[CONF_TEMPERATURE_OFFSET]
             )
             self._battery.update(data.RealTime, voltage_corrected)
+            self._notified_away = False
             return {
                 KEY_VOLTAGE_DEVICE: data.RealTime.Voltage,
                 KEY_VOLTAGE_CORRECTED: voltage_corrected,
@@ -107,6 +109,11 @@ class BM6DataUpdateCoordinator(DataUpdateCoordinator):
                 KEY_RAPID_DECELERATION: data.RealTime.RapidDeceleration,
                 KEY_BLUETOOTH_SCANNER: data.Advertisement.Scanner,
             }
+        except BM6DeviceNotFoundError:
+            if not self._notified_away:
+                _LOGGER.error("BM6 device %s not found", self.device_address)
+                self._notified_away = True
+            return None
         except BM6DeviceError as e:
             _LOGGER.error("BM6 device error at %s: %s", self.device_address, e)
             raise UpdateFailed(f"BM6 device error: {e}") from e
